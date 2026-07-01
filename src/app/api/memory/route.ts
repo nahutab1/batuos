@@ -1,0 +1,24 @@
+import { NextResponse } from 'next/server';
+import { createServerClient } from '@/lib/supabase';
+
+export async function GET() {
+  const db = createServerClient();
+  const { data, error } = await db.from('memories').select('*').order('created_at', { ascending: false });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
+export async function POST(req: Request) {
+  const body = await req.json();
+  const db = createServerClient();
+
+  const { data, error } = await db.from('memories').insert({
+    fact: body.fact,
+    context: body.context || null,
+    source: body.source || 'manual'
+  }).select().single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
