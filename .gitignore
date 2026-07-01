@@ -56,5 +56,8 @@ Thumbs.db
 
 .vercel
 
+# Binaries
+*.exe
+
 # BatuOS runtime data
 .data/
