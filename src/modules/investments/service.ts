@@ -7,6 +7,7 @@ import crypto from 'crypto';
 const DATA_DIR = path.join(process.cwd(), '.data');
 const FILE = path.join(DATA_DIR, 'investment_discoveries.json');
 const HISTORY = path.join(DATA_DIR, 'investment_discovery_history.json');
+const ANALYSIS_FILE = path.join(DATA_DIR, 'investment_analyses.json');
 
 function read<T>(f: string): T[] { try { if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf-8')); } catch {} return []; }
 function write<T>(f: string, d: T[]) { if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true }); fs.writeFileSync(f, JSON.stringify(d, null, 2)); }
@@ -99,11 +100,19 @@ Example assets from 2025-2026 that were once undiscovered: TAO, FET, RNDR, KASPA
     return read<DiscoveredAsset>(FILE);
   }
 
-  // ── AI Deep Dive on one asset ──
+  // ── AI Deep Dive on one asset (cached 24h) ──
   async analyzeAsset(symbol: string): Promise<InvestmentAnalysis | null> {
     const assets = read<DiscoveredAsset>(FILE);
     const asset = assets.find(a => a.symbol === symbol);
     if (!asset) return null;
+
+    // Check cache first
+    const analyses = read<InvestmentAnalysis>(ANALYSIS_FILE);
+    const cached = analyses.find(a => a.asset_symbol === symbol);
+    if (cached) {
+      const age = Date.now() - new Date(cached.created_at).getTime();
+      if (age < 24 * 3600 * 1000) return cached; // 24h cache
+    }
 
     const prompt = `You are an investment research AI. Analyze this undiscovered asset:
 
@@ -128,17 +137,13 @@ Return ONLY a raw JSON object (no markdown):
 
 Be data-driven, not hype-driven. Never give investment advice — only analysis.`;
 
-    let result = '';
     try {
-      result = await generateText(prompt, 'You are a strict investment research AI. Output only valid JSON. No advice.');
-    } catch {
-      return null;
-    }
+      const result = await generateText(prompt, 'You are a strict investment research AI. Output only valid JSON. No advice.');
+      if (!result) return cached || null;
 
-    try {
       const cleaned = result.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(cleaned);
-      return {
+      const analysis: InvestmentAnalysis = {
         asset_symbol: symbol,
         asset_name: asset.name,
         summary: parsed.summary || '',
@@ -150,8 +155,17 @@ Be data-driven, not hype-driven. Never give investment advice — only analysis.
         similar_past_cases: parsed.similar_past_cases || '',
         created_at: new Date().toISOString(),
       };
+
+      // Save to cache
+      const all = read<InvestmentAnalysis>(ANALYSIS_FILE);
+      const idx = all.findIndex(a => a.asset_symbol === symbol);
+      if (idx >= 0) all[idx] = analysis;
+      else all.push(analysis);
+      write(ANALYSIS_FILE, all);
+
+      return analysis;
     } catch {
-      return null;
+      return cached || null;
     }
   }
 }
