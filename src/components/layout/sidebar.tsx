@@ -13,13 +13,13 @@ const navModules = [
   { label: 'Calendar', href: '/dashboard/calendar', icon: '◎' },
   { label: 'Nutrition', href: '/dashboard/nutrition', icon: '⟡' },
   { label: 'Discovery', href: '/dashboard/discovery', icon: '◈' },
+  { label: 'Finance', href: '/dashboard/finance', icon: '¤' },
+  { label: 'Hidden Gems', href: '/dashboard/investments', icon: '◈' },
   { label: 'Settings', href: '/dashboard/settings', icon: '✦' },
 ];
 
 const navFuture = [
   { label: 'CRM', href: '#', icon: '⊞', soon: true },
-  { label: 'Finance', href: '/dashboard/finance', icon: '¤' },
-  { label: 'Hidden Gems', href: '/dashboard/investments', icon: '◈' },
   { label: 'Review', href: '#', icon: '↻', soon: true },
 ];
 

@@ -61,7 +61,13 @@ export class TaskService {
 
   async update(id: string, dto: { title?: string; done?: boolean; priority?: number; due_date?: string }): Promise<ServiceResult<Task>> {
     try {
-      const result = await this.repository.update(id, dto);
+      // Map done -> status for Supabase
+      const dbDto: Record<string, unknown> = { ...dto };
+      if (dto.done !== undefined) {
+        dbDto.status = dto.done ? 'done' : 'todo';
+        delete dbDto.done;
+      }
+      const result = await this.repository.update(id, dbDto as any);
       return { data: result.data, error: result.error };
     } catch (error) {
       return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };

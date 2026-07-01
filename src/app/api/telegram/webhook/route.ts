@@ -13,6 +13,100 @@ bot.help((ctx) => {
   ctx.reply('BatuOS Bot Help:\n\n- Prefix with "task:" or "/task" to add a task.\n- Prefix with "note:" or "/note" to add a note.\n- Prefix with "goal:" or "/goal" to add a goal.\n- Send a food photo to analyze calories.\n- Everything else goes to your Memory stream.');
 });
 
+// ── Voice message handler ──
+bot.on('voice', async (ctx) => {
+  const voice = ctx.message.voice;
+  if (!voice) return;
+
+  ctx.reply('🎤 Ses kaydı alındı, çözümleniyor...');
+
+  try {
+    // Get voice file from Telegram
+    const fileLink = await ctx.telegram.getFileLink(voice.file_id);
+    const response = await fetch(fileLink.href);
+    const buffer = await response.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString('base64');
+
+    // Gemini'ye gönder — sesi analiz et ve türünü belirle
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
+    const prompt = `You are BatuOS, a personal AI assistant. Analyze this voice recording transcript.
+
+Classify the message into ONE of these categories:
+- "task" — if it's something to do, a reminder, an action item, a to-do (e.g. "call the client", "buy milk", "finish the report")
+- "note" — if it's an idea, a thought to save, information to remember (e.g. "I think AI will transform education", "meeting notes")
+- "goal" — if it's an objective, a target, something to achieve (e.g. "I want to lose 10kg", "learn TypeScript this month")
+- "memory" — if it's a personal fact, a memory, something about yourself (e.g. "I love reading", "my favorite color is blue")
+- "food" — if it's about what you ate, nutrition, diet, calories (e.g. "I had chicken salad for lunch")
+
+Return ONLY a raw JSON object (no markdown):
+{
+  "category": "task|note|goal|memory|food",
+  "title": "short title (max 60 chars)",
+  "content": "full content or description",
+  "reasoning": "why you chose this category"
+}
+
+CRITICAL: Be accurate. A task is something to DO. A note is something to KNOW. A goal is something to ACHIEVE. A memory is something about YOU. Food is about EATING.`;
+
+    const geminiRes = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: [
+        { text: prompt },
+        { inlineData: { mimeType: voice.mime_type || 'audio/ogg', data: base64 } },
+      ],
+      config: { temperature: 0.1, maxOutputTokens: 300 },
+    });
+
+    const text = geminiRes.text ?? '';
+    const cleaned = text.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
+    const parsed = JSON.parse(cleaned);
+    const category = parsed.category || 'memory';
+    const title = parsed.title || 'Ses kaydı';
+    const content = parsed.content || title;
+
+    const db = createServerClient();
+
+    switch (category) {
+      case 'task': {
+        const { error } = await db.from('tasks').insert({ title, description: content, status: 'todo' });
+        if (error) throw error;
+        // Auto-reprioritize
+        fetch('http://localhost:3000/api/ai/reprioritize', { method: 'POST' }).catch(() => {});
+        ctx.reply(`✅ *Task eklendi:* ${title}`, { parse_mode: 'Markdown' });
+        break;
+      }
+      case 'note': {
+        const { error } = await db.from('notes').insert({ title: title.substring(0, 60), content, tags: ['voice'] });
+        if (error) throw error;
+        ctx.reply(`📝 *Not kaydedildi:* ${title}`, { parse_mode: 'Markdown' });
+        break;
+      }
+      case 'goal': {
+        const { error } = await db.from('goals').insert({ title, status: 'active' });
+        if (error) throw error;
+        ctx.reply(`🎯 *Hedef eklendi:* ${title}`, { parse_mode: 'Markdown' });
+        break;
+      }
+      case 'food': {
+        const { error } = await db.from('food_logs').insert({
+          meal_type: 'snack', food_name: title, calories: 0, notes: content, logged_at: new Date().toISOString(),
+        });
+        if (error) throw error;
+        ctx.reply(`🍽 *Yemek kaydedildi:* ${title}`, { parse_mode: 'Markdown' });
+        break;
+      }
+      default: {
+        const { error } = await db.from('memories').insert({ fact: content, source: 'telegram_voice' });
+        if (error) throw error;
+        ctx.reply(`🧠 *Hafızaya kaydedildi:* ${title}`, { parse_mode: 'Markdown' });
+      }
+    }
+  } catch (err) {
+    console.error('Voice analysis error:', err);
+    ctx.reply('❌ Ses analiz edilemedi. Lütfen tekrar dene.');
+  }
+});
+
 // ── Food photo handler ──
 bot.on('photo', async (ctx) => {
   const photos = ctx.message.photo;

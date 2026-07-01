@@ -1,12 +1,15 @@
 /**
- * Cron job script for nightly summary.
- * Run every evening at e.g. 22:00 via cron/scheduler:
- *
+ * Nightly task summary cron script.
+ * Run at midnight (or whenever):
  *   node scripts/send-nightly-summary.js
  *
- * Calls the BatuOS nightly-summary API endpoint.
+ * Calls BatuOS nightly-summary API → sends priority-sorted task list to Telegram.
  *
- * Requires: .env.local with NIGHTLY_SECRET and BatuOS_URL
+ * Setup Windows Task Scheduler for daily 00:00:
+ *   1. Open Task Scheduler
+ *   2. Create Task → Trigger: Daily at 00:00
+ *   3. Action: Start a program → node → script path
+ *   4. Start in: C:\Users\USER\batuos
  */
 
 require('dotenv').config({ path: require('path').resolve(__dirname, '..', '.env.local') });
@@ -34,7 +37,7 @@ async function main() {
 
   if (res.ok) {
     console.log('✅ Nightly summary sent!');
-    console.log('📝', data.summary);
+    console.log(`📊 ${data.stats.done} done, ${data.stats.pending} pending, ${data.stats.notes} notes, ${data.stats.calories} kcal`);
   } else {
     console.error('❌ Failed:', data.error || res.statusText);
     process.exit(1);

@@ -25,6 +25,8 @@ export default function TasksPage() {
     await fetch("/api/tasks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title }) });
     setTitle("");
     fetchTasks();
+    // Auto reprioritize
+    fetch("/api/ai/reprioritize", { method: "POST" }).catch(() => {});
   };
 
   const addAiTask = async () => {
@@ -34,6 +36,8 @@ export default function TasksPage() {
       await fetch("/api/tasks/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ text: title }) });
       setTitle("");
       fetchTasks();
+      // Auto reprioritize
+      fetch("/api/ai/reprioritize", { method: "POST" }).catch(() => {});
     } finally { setIsAiLoading(false); }
   };
 
@@ -51,7 +55,7 @@ export default function TasksPage() {
   };
 
   const toggleTask = async (id: string) => {
-    await fetch(`/api/tasks?id=${id}`, { method: "PATCH" });
+    await fetch(`/api/tasks/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ done: true }) });
     fetchTasks();
   };
 
