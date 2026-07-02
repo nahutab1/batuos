@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { createServerClient } from '@/lib/supabase';
-import type { FoodLog, CreateFoodLogDTO, DailyNutrition, AnalysisResult, StepsToBurnResult, MealType } from './types';
+import type { FoodLog, CreateFoodLogDTO, DailyNutrition, AnalysisResult, StepsToBurnResult } from './types';
 import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
@@ -16,17 +16,23 @@ function readFood(): FoodLog[] { try { if (fs.existsSync(FOOD_FILE)) return JSON
 function writeFood(data: FoodLog[]) { ensureDir(); fs.writeFileSync(FOOD_FILE, JSON.stringify(data, null, 2)); }
 function uid() { return crypto.randomUUID(); }
 
-async function useSupabase(): Promise<boolean> {
+let _supabaseCheck: boolean | null = null;
+async function checkSupabase(): Promise<boolean> {
+  if (_supabaseCheck !== null) return _supabaseCheck;
   try {
     const db = createServerClient();
     const { error } = await db.from('food_logs').select('id').limit(1);
-    return !error;
-  } catch { return false; }
+    _supabaseCheck = !error;
+    return _supabaseCheck;
+  } catch {
+    _supabaseCheck = false;
+    return false;
+  }
 }
 
 export class NutritionService {
   async getAll(date?: string): Promise<{ data: FoodLog[]; count: number }> {
-    if (await useSupabase()) {
+    if (await checkSupabase()) {
       const db = createServerClient();
       let q = db.from('food_logs').select('*', { count: 'exact' }).order('logged_at', { ascending: false });
       if (date) {
@@ -47,7 +53,7 @@ export class NutritionService {
   }
 
   async create(dto: CreateFoodLogDTO): Promise<FoodLog> {
-    if (await useSupabase()) {
+    if (await checkSupabase()) {
       const db = createServerClient();
       const { data, error } = await db.from('food_logs').insert(dto).select().single();
       if (error) throw new Error(error.message);
@@ -74,7 +80,7 @@ export class NutritionService {
   }
 
   async delete(id: string): Promise<void> {
-    if (await useSupabase()) {
+    if (await checkSupabase()) {
       const db = createServerClient();
       await db.from('food_logs').delete().eq('id', id);
       return;

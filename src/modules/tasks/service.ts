@@ -2,7 +2,7 @@ import { Task } from './types';
 import { TaskRepository } from './repository';
 import { prioritizeTasks, parseNaturalLanguageTask } from '@/lib/gemini';
 import { ServiceResult } from '@/core/types';
-import { createToken, container } from '@/core';
+import { createToken } from '@/core';
 
 // DI token for TaskService
 export const TASK_SERVICE = createToken<TaskService>('TASK_SERVICE');
@@ -67,7 +67,7 @@ export class TaskService {
         dbDto.status = dto.done ? 'done' : 'todo';
         delete dbDto.done;
       }
-      const result = await this.repository.update(id, dbDto as any);
+      const result = await this.repository.update(id, dbDto as Record<string, unknown>);
       return { data: result.data, error: result.error };
     } catch (error) {
       return { data: null, error: error instanceof Error ? error.message : 'Unknown error' };

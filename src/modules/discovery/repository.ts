@@ -41,6 +41,12 @@ export class StartupRepository {
     return data as StartupIdea | null;
   }
 
+  async getByHashes(hashes: string[]): Promise<{ data: StartupIdea[] | null; error: string | null }> {
+    const { data, error } = await this.db.from(TABLE).select('duplicate_hash').in('duplicate_hash', hashes);
+    if (error) return { data: null, error: error.message };
+    return { data: data as StartupIdea[], error: null };
+  }
+
   async create(dto: CreateStartupIdeaDTO): Promise<ServiceResult<StartupIdea>> {
     const { data, error } = await this.db.from(TABLE).insert(dto).select().single();
     if (error) return { data: null, error: error.message };

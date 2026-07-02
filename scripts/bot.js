@@ -204,9 +204,40 @@ bot.telegram.deleteWebhook().then(() => {
   return bot.launch();
 }).then(() => {
   console.log('🤖 BatuOS Bot polling başladı!');
+
+  // ── Gece 23:55'te nightly summary gönder ──
+  const scheduleNightly = () => {
+    const now = new Date();
+    const target = new Date(now);
+    target.setHours(23, 55, 0, 0); // 23:55
+    if (now > target) target.setDate(target.getDate() + 1); // yarına ata
+    const msUntilTarget = target.getTime() - now.getTime();
+
+    console.log(`⏰ Gece özeti: ${Math.round(msUntilTarget / 60000)} dk sonra (${target.toLocaleString()})`);
+
+    setTimeout(async () => {
+      console.log('🌙 Gece özeti gönderiliyor...');
+      try {
+        const SECRET = process.env.NIGHTLY_SECRET || 'batuos-nightly-secret-2026';
+        const BASE = process.env.BATUOS_URL || 'http://localhost:3000';
+        const res = await fetch(`${BASE}/api/nightly-summary`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${SECRET}`, 'Content-Type': 'application/json' },
+        });
+        const data = await res.json();
+        if (res.ok) console.log(`✅ Gece özeti gönderildi: ${data.stats?.done || 0} done, ${data.stats?.pending || 0} pending`);
+        else console.error('❌ Gece özeti hatası:', data.error);
+      } catch (e) {
+        console.error('❌ Gece özeti başarısız:', e.message);
+      }
+      // Her gün tekrar et
+      scheduleNightly();
+    }, msUntilTarget);
+  };
+
+  scheduleNightly();
 }).catch(err => {
   console.error('Bot başlatılamadı:', err.message);
-  // process'i öldürme, beklemede kal
 });
 
 // Unhandled rejection/exception → bot'u öldürme

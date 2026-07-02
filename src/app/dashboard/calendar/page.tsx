@@ -20,7 +20,7 @@ export default function CalendarPage() {
   const [description, setDescription] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
@@ -41,7 +41,7 @@ export default function CalendarPage() {
   const addEvent = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title || !startTime || !endTime) return;
-    setIsLoading(true);
+    setIsSaving(true);
     await fetch('/api/calendar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -51,7 +51,7 @@ export default function CalendarPage() {
       }),
     });
     setTitle(''); setDescription(''); setStartTime(''); setEndTime('');
-    setIsLoading(false); fetchEvents();
+    setIsSaving(false); fetchEvents();
   };
 
   const deleteEvent = async (id: string) => {

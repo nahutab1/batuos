@@ -62,7 +62,7 @@ export async function POST(req: Request) {
       success: true,
       stats: { done: doneTasks.length, pending: pendingTasks.length, notes: notes.length, calories: totalCal },
     });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('Nightly summary error:', error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }

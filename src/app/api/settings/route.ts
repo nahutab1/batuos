@@ -92,7 +92,7 @@ export async function POST(req: Request) {
     }
     writeEnv(vars);
     return NextResponse.json({ success: true, message: '✅ Settings saved! Restart the server to apply.' });
-  } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
   }
 }

@@ -3,9 +3,8 @@ import { GoogleGenAI } from '@google/genai';
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY! });
 const MODEL = 'gemini-2.5-flash';
 
-// ── Simple in-memory rate-limit cache ──
 let lastCallTime = 0;
-const MIN_INTERVAL_MS = 2000; // 2s between calls — safe for free tier
+const MIN_INTERVAL_MS = 2000;
 
 async function rateLimitedCall(prompt: string, systemInstruction: string): Promise<string> {
   const now = Date.now();
@@ -16,13 +15,15 @@ async function rateLimitedCall(prompt: string, systemInstruction: string): Promi
   const response = await ai.models.generateContent({
     model: MODEL,
     contents: prompt,
-    config: {
-      systemInstruction,
-      temperature: 0.2,
-    },
+    config: { systemInstruction, temperature: 0.2 },
   });
 
   return response.text ?? '';
+}
+
+function getErrorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
 }
 
 export async function generateText(prompt: string, systemInstruction?: string): Promise<string> {
@@ -30,14 +31,14 @@ export async function generateText(prompt: string, systemInstruction?: string): 
 
   try {
     return await rateLimitedCall(prompt, instruction);
-  } catch (error: any) {
-    const msg = error?.message || '';
+  } catch (error: unknown) {
+    const msg = getErrorMessage(error);
     const isQuota = msg.includes('429') || msg.includes('quota') || msg.includes('RESOURCE_EXHAUSTED') || msg.includes('rate');
 
     if (isQuota) {
       console.error('Gemini quota exhausted — using fallback response');
     } else {
-      console.error('Gemini API error:', error);
+      console.error('Gemini API error:', msg);
     }
 
     return '';
@@ -62,7 +63,7 @@ Return ONLY a raw, valid JSON array containing objects with keys "id", "priority
   try {
     const cleaned = result.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
-  } catch (e) {
+  } catch {
     console.error("AI Prioritization parsing failed:", result);
     return tasks.map((t) => ({ id: t.id, priority: 50, reasoning: 'AI failed to parse' }));
   }
@@ -97,7 +98,7 @@ Return ONLY a raw, valid JSON object with keys "title" (string), "description" (
       due_date: parsed.due_date || undefined,
       priority: parsed.priority
     };
-  } catch (e) {
+  } catch {
     console.error("AI Task Parsing failed:", result);
     return { title: text, description: '' };
   }

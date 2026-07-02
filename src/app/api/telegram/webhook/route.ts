@@ -101,7 +101,7 @@ CRITICAL: Be accurate. A task is something to DO. A note is something to KNOW. A
         ctx.reply(`🧠 *Hafızaya kaydedildi:* ${title}`, { parse_mode: 'Markdown' });
       }
     }
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Voice analysis error:', err);
     ctx.reply('❌ Ses analiz edilemedi. Lütfen tekrar dene.');
   }
@@ -163,7 +163,7 @@ bot.on('photo', async (ctx) => {
       `🍽 *${parsed.food_name || 'Unknown'}*\nCalories: *${cal}* kcal\n${parsed.protein_g || 0}g protein • ${parsed.carbs_g || 0}g carbs • ${parsed.fat_g || 0}g fat\n\n🚶 Burn this off: ~${(steps / 1000).toFixed(1)}k steps (${minutes} min walk)`,
       { parse_mode: 'Markdown' }
     );
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Food photo analysis error:', err);
     ctx.reply('❌ Could not analyze the photo. Please try again.');
   }
@@ -221,8 +221,8 @@ async function handleTaskInput(ctx: Context): Promise<void> {
     } catch (reErr) {
       console.error('Auto-reprioritize error:', reErr);
     }
-  } catch (err: any) {
-    ctx.reply(`❌ Task error: ${err.message}`);
+  } catch (err: unknown) {
+    ctx.reply(`❌ Task error: ${(err as Error).message}`);
   }
 }
 
@@ -244,8 +244,8 @@ async function handleNoteInput(ctx: Context): Promise<void> {
     });
     if (error) throw error;
     ctx.reply('📝 Note saved.');
-  } catch (err: any) {
-    ctx.reply(`❌ Note error: ${err.message}`);
+  } catch (err: unknown) {
+    ctx.reply(`❌ Note error: ${(err as Error).message}`);
   }
 }
 
@@ -265,8 +265,8 @@ async function handleGoalInput(ctx: Context): Promise<void> {
     });
     if (error) throw error;
     ctx.reply('🎯 Goal added.');
-  } catch (err: any) {
-    ctx.reply(`❌ Goal error: ${err.message}`);
+  } catch (err: unknown) {
+    ctx.reply(`❌ Goal error: ${(err as Error).message}`);
   }
 }
 
@@ -300,8 +300,8 @@ bot.on('text', async (ctx) => {
     });
     if (error) throw error;
     ctx.reply('🧠 Saved to Memory.');
-  } catch (err: any) {
-    ctx.reply(`❌ Failed to save memory: ${err.message}`);
+  } catch (err: unknown) {
+    ctx.reply(`❌ Failed to save memory: ${(err as Error).message}`);
   }
 });
 
@@ -316,7 +316,7 @@ export async function POST(req: Request) {
     const body = await req.json();
     await bot.handleUpdate(body);
     return new Response('OK', { status: 200 });
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Telegram webhook error:', err);
     return new Response('Error', { status: 500 });
   }

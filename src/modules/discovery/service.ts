@@ -44,14 +44,32 @@ function now() {
 export class StartupService {
   constructor(private repository = new StartupRepository()) {}
 
+  // ── Cached supabase check (1 kez kontrol et) ──
+  private _supabaseCheck: boolean | null = null;
+
   private async usingSupabase(): Promise<boolean> {
+    if (this._supabaseCheck !== null) return this._supabaseCheck;
     try {
       const db = createServerClient();
       const { error } = await db.from('startup_ideas').select('id').limit(1);
-      return !error; // false if table doesn't exist
+      this._supabaseCheck = !error;
+      return this._supabaseCheck;
     } catch {
+      this._supabaseCheck = false;
       return false;
     }
+  }
+
+  /** Tüm hash'leri tek sorguda kontrol et — N tane ayrı sorgu yerine */
+  private async getExistingHashes(hashes: string[]): Promise<Set<string>> {
+    if (hashes.length === 0) return new Set();
+    if (await this.usingSupabase()) {
+      const { data } = await this.repository.getByHashes(hashes);
+      return new Set((data || []).map(r => r.duplicate_hash).filter(Boolean) as string[]);
+    }
+    const all = readJson(IDEAS_FILE) as StartupIdea[];
+    const existing = new Set(all.map(i => i.duplicate_hash).filter((h): h is string => !!h));
+    return existing;
   }
 
   // ── CRUD ──
@@ -99,46 +117,45 @@ export class StartupService {
 
   async runDiscovery(): Promise<ServiceResult<{ added: number; skipped: number }>> {
     try {
-      let added = 0;
-      let skipped = 0;
-
+      // 1. Tüm API'leri paralel çek
       const results = await Promise.allSettled([
-        this.fetchHN().then(ideas => ({ source: 'Hacker News', ideas })),
-        this.fetchGitHubTrending().then(ideas => ({ source: 'GitHub Trending', ideas })),
-        this.fetchProductHunt().then(ideas => ({ source: 'Product Hunt', ideas })),
+        this.fetchHN(),
+        this.fetchGitHubTrending(),
+        this.fetchProductHunt(),
       ]);
 
-      for (const result of results) {
-        if (result.status === 'rejected') {
-          console.error('[Discovery] Fetcher failed:', result.reason);
-          continue;
-        }
-        const { ideas } = result.value;
-        for (const idea of ideas) {
+      // 2. Tüm idea'ları topla
+      const allIdeas: DiscoveredIdea[] = [];
+      for (const r of results) {
+        if (r.status === 'fulfilled') allIdeas.push(...r.value);
+      }
+
+      if (allIdeas.length === 0) return { data: { added: 0, skipped: 0 }, error: null };
+
+      // 3. Varolan hash'leri batch kontrol et (N tane sorgu yerine 1-2 sorgu)
+      const existingHashes = await this.getExistingHashes(allIdeas.map(i => i.duplicate_hash));
+      const newIdeas = allIdeas.filter(i => !existingHashes.has(i.duplicate_hash));
+      const skipped = allIdeas.length - newIdeas.length;
+
+      // 4. Batch save
+      let added = 0;
+      if (await this.usingSupabase()) {
+        for (const idea of newIdeas) {
           try {
-            if (await this.usingSupabase()) {
-              const existing = await this.repository.getByHash(idea.duplicate_hash);
-              if (existing) { skipped++; continue; }
-              const saveResult = await this.repository.create({ ...idea });
-              if (!saveResult.error) added++;
-            } else {
-              const all = readJson(IDEAS_FILE) as StartupIdea[];
-              if (all.some(i => i.duplicate_hash === idea.duplicate_hash)) { skipped++; continue; }
-              all.unshift({
-                id: uuid(),
-                ...idea,
-                metadata: {},
-                engagement_score: 0,
-                created_at: now(),
-                updated_at: now(),
-              } as StartupIdea);
-              writeJson(IDEAS_FILE, all);
-              added++;
-            }
-          } catch (e) {
-            console.error('[Discovery] Save failed:', e);
-          }
+            const r = await this.repository.create({ ...idea });
+            if (!r.error) added++;
+          } catch {}
         }
+      } else {
+        const existing = readJson(IDEAS_FILE) as StartupIdea[];
+        for (const idea of newIdeas) {
+          existing.unshift({
+            id: uuid(), ...idea, metadata: {}, engagement_score: 0,
+            created_at: now(), updated_at: now(),
+          } as StartupIdea);
+          added++;
+        }
+        writeJson(IDEAS_FILE, existing);
       }
 
       return { data: { added, skipped }, error: null };

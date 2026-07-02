@@ -6,7 +6,6 @@ import crypto from 'crypto';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const FILE = path.join(DATA_DIR, 'investment_discoveries.json');
-const HISTORY = path.join(DATA_DIR, 'investment_discovery_history.json');
 const ANALYSIS_FILE = path.join(DATA_DIR, 'investment_analyses.json');
 
 function read<T>(f: string): T[] { try { if (fs.existsSync(f)) return JSON.parse(fs.readFileSync(f, 'utf-8')); } catch {} return []; }

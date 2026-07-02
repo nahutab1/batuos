@@ -43,7 +43,6 @@ export default function NutritionPage() {
   const [aiImage, setAiImage] = useState<string | null>(null);
   const [aiMime, setAiMime] = useState('image/jpeg');
   const [aiAnalyzing, setAiAnalyzing] = useState(false);
-  const [aiResult, setAiResult] = useState<any>(null);
   const [aiMealType, setAiMealType] = useState('snack');
 
   // Steps
@@ -104,7 +103,6 @@ export default function NutritionPage() {
   const analyzeWithAi = async () => {
     if (!aiImage) return;
     setAiAnalyzing(true);
-    setAiResult(null);
     setStepInfo(null);
     try {
       const analyzeRes = await fetch('/api/nutrition/analyze', {
@@ -113,7 +111,6 @@ export default function NutritionPage() {
         body: JSON.stringify({ image: aiImage, mimeType: aiMime }),
       });
       const result = await analyzeRes.json();
-      setAiResult(result);
 
       // Save
       await fetch('/api/nutrition', {
