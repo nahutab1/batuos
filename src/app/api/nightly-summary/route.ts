@@ -16,13 +16,15 @@ export async function POST(req: Request) {
     // Fetch tasks sorted by priority (highest first)
     const { data: tasks, error: tasksErr } = await db
       .from('tasks')
-      .select('title, status, priority')
+      .select('title, status, priority, due_date')
       .order('priority', { ascending: false });
 
     if (tasksErr) throw tasksErr;
 
     const doneTasks = tasks.filter((t: any) => t.status === 'done');
-    const pendingTasks = tasks.filter((t: any) => t.status !== 'done');
+    const pendingTasks = tasks
+      .filter((t: any) => t.status !== 'done')
+      .sort((a: any, b: any) => (b.priority || 0) - (a.priority || 0));
 
     // Fetch notes + food for context
     const [notesRes, foodRes] = await Promise.all([

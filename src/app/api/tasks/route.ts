@@ -35,15 +35,13 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (result.error) {
-    return NextResponse.json({ error: result.error }, { status: 500 });
+  // Return immediately, reprioritize in background (don't block)
+  if (!result.error) {
+    service.reprioritize().catch(e => console.error('Reprioritize error:', e));
   }
 
-  // Auto-reprioritize after adding
-  try {
-    await service.reprioritize();
-  } catch (e) {
-    console.error('Reprioritize error:', e);
+  if (result.error) {
+    return NextResponse.json({ error: result.error }, { status: 500 });
   }
 
   return NextResponse.json(result.data);
