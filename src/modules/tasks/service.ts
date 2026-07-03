@@ -86,22 +86,60 @@ export class TaskService {
   async reprioritize(): Promise<ServiceResult<void>> {
     try {
       const allTasks = await this.repository.getAll(1, 1000);
-      // tasks uses 'status' field: 'todo', 'done', etc.
       const pending = allTasks.data.filter((t) => t.status !== 'done');
 
       if (pending.length === 0) {
         return { data: null, error: null };
       }
 
+      // Once AI prioritization yap, fallback'e client-side sort
       const priorities = await prioritizeTasks(
         pending.map((t) => ({
           id: t.id,
           title: t.title,
+          due_date: t.due_date,
         }))
       );
 
-      for (const p of priorities) {
-        await this.repository.update(p.id, { priority: p.priority });
+      // AI'dan dönen priority'leri uygula (geçerliyse)
+      const aiValid = priorities.length > 0 && priorities.some(p => p.priority !== 50 && p.reasoning !== 'AI failed to parse');
+      if (aiValid) {
+        for (const p of priorities) {
+          await this.repository.update(p.id, { priority: p.priority });
+        }
+      } else {
+        // AI fail → client-side heuristik sırala
+        console.log('[Reprioritize] AI failed, using heuristic for', pending.length, 'tasks');
+        const now = new Date();
+        const scored = pending.map(t => {
+          let score = 50;
+          const title = t.title.toLowerCase();
+          const dd = t.due_date ? new Date(t.due_date) : null;
+
+          // Due date varsa ona göre skorla
+          if (dd) {
+            const diffDays = Math.ceil((dd.getTime() - now.getTime()) / 86400000);
+            if (diffDays < 0) score = 100;      // overdue
+            else if (diffDays === 0) score = 95;  // today
+            else if (diffDays === 1) score = 80;  // tomorrow
+            else if (diffDays <= 3) score = 65;   // this week
+            else if (diffDays <= 7) score = 50;   // this week later
+            else score = 35;                      // next week+
+          } else {
+            // Başlığa göre skorla
+            if (title.includes('bugün') || title.includes('hemen') || title.includes('acil')) score = 90;
+            else if (title.includes('sınav') || title.includes('sinav')) score = 85;
+            else if (title.includes('aşı') || title.includes('asi') || title.includes('sağlık') || title.includes('saglik') || title.includes('doktor')) score = 80;
+            else if (title.includes('yarın') || title.includes('yarin') || title.includes('sabah')) score = 75;
+            else if (title.includes('haftaya') || title.includes('gelecek')) score = 40;
+            else if (title.includes('tatil') || title.includes('seyahat')) score = 20;
+          }
+          return { id: t.id, priority: score, title: t.title };
+        });
+
+        for (const s of scored) {
+          await this.repository.update(s.id, { priority: s.priority });
+        }
       }
 
       return { data: null, error: null };

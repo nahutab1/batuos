@@ -50,22 +50,36 @@ export async function prioritizeTasks(
 ): Promise<Array<{ id: string; priority: number; reasoning: string }>> {
   if (tasks.length === 0) return [];
 
-  const prompt = `Evaluate the following list of tasks and assign a priority score to each from 0 to 100 (where 100 is the most urgent).
-Consider due dates (closer = higher priority) and semantic urgency implied by the title/description.
+  const today = new Date().toISOString().split('T')[0];
+  const prompt = `Today is ${today}. Prioritize these tasks 0-100 (100=most urgent).
+
+CRITICAL: If a task has NO due_date, use its TITLE to guess urgency:
+- "bugünkü" (today's), "bu gece" (tonight), "hemen" (immediate) → 85-100
+- "yarın" (tomorrow), "sabah" (morning) → 70-85
+- "haftaya" (next week), "önümüzdeki hafta" → 30-50
+- aşı (vaccine), sağlık (health), hastane (hospital) → 70-90 (health is time-sensitive)
+- tatil (vacation), seyahat (travel) → 10-30 (not urgent)
+- genel görevler (general tasks) → 40-60
+
+If due_date IS set: overdue=100, today=90, tomorrow=75, this week=50-60, next week=30-40.
 
 Tasks:
 ${JSON.stringify(tasks, null, 2)}
 
-Return ONLY a raw, valid JSON array containing objects with keys "id", "priority" (number), and "reasoning" (short string). Do NOT wrap in markdown \`\`\`json blocks.`;
+Return ONLY raw JSON array with keys "id", "priority" (number), and "reasoning" (short Turkish). No markdown.`;
 
-  const result = await generateText(prompt, 'You are an analytical task prioritization engine. Output only strict JSON.');
+  const result = await generateText(prompt, 'You are a strict task prioritization engine. Analyze titles carefully.');
+
+  if (!result) {
+    return [];
+  }
 
   try {
     const cleaned = result.replace(/```json?\n?/gi, '').replace(/```/g, '').trim();
     return JSON.parse(cleaned);
   } catch {
     console.error("AI Prioritization parsing failed:", result);
-    return tasks.map((t) => ({ id: t.id, priority: 50, reasoning: 'AI failed to parse' }));
+    return [];
   }
 }
 
